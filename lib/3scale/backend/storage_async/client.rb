@@ -120,6 +120,19 @@ module ThreeScale
           end
         end
 
+        def blpop(*args)
+          call_args = ['BLPOP'] + args
+
+          # redis-rb accepts a Hash as last arg that can contain :timeout.
+          if call_args.last.is_a? Hash
+            timeout = call_args.last[:timeout]
+            call_args.pop
+            call_args << timeout
+          end
+
+          @redis_async.call(*call_args.flatten)
+        end
+
         def set(key, val, opts = {})
           args = ['SET', key, val]
 
