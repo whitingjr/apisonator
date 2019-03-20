@@ -19,7 +19,13 @@ function do_license_check()
 
 function do_test()
 {
-    bundle_exec rake "$@"
+    echo 'Running tests using the blocking Redis driver'
+    CONFIG_REDIS_ASYNC=false bundle_exec rake "$@"
+
+    printf "================================================================================\n\n\n"
+
+    echo 'Running tests using the non-blocking Redis driver'
+    CONFIG_REDIS_ASYNC=true bundle_exec rake "$@"
 }
 
 function run_tests()
