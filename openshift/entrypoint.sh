@@ -16,4 +16,4 @@ if [[ -v ERROR_LOG_FILE ]]; then
   tail -f $ERROR_LOG_FILE 1>&2 &
 fi
 
-exec bundle exec "$@"
+exec $JRUBY_INSTALL_HOME/bin/jruby -S bundle exec "$@"

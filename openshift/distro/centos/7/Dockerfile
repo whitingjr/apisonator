@@ -34,26 +34,41 @@
 #                   with number of cpus being a good heuristic.
 #
 
-FROM centos:7
+FROM centos:7.6.1810
 
 ARG RUBY_SCL=rh-ruby23
-ARG BUILD_DEP_PKGS="make gcc git"
+ARG BUILD_DEP_PKGS="make gcc git clang"
 # Turn off for release mode to produce smaller layers.
 ARG CACHE_FRIENDLY=true
+#   
+ARG JRUBY_INSTALL=DUFF_JRUBY_INSTALL
+ARG JRUBY_DOWNLOAD_URL=DUFF_JRUBY_DOWNLOAD_URL
+ARG JRUBY_INSTALL_HOME=/opt/jruby/$JRUBY_INSTALL
 
-# Configure yum, install SCL, update, install Ruby and clean.
-RUN sed -i /etc/yum.conf -e \
-      '/^\(clean_requirements_on_remove\|history_record\|tsflags\|logfile\)=/d' -e \
-      's/^\(\[main\]\b.*\)$/\1\nclean_requirements_on_remove=1\nhistory_record=0\ntsflags=nodocs\nlogfile=\/dev\/null\n/' \
-      /etc/yum.conf \
- && yum install -y centos-release-scl \
- && yum -y update \
- && yum -y install ${RUBY_SCL} ${RUBY_SCL}-ruby-devel \
- && if test "${CACHE_FRIENDLY}x" = "truex"; then \
-      yum -y install ${BUILD_DEP_PKGS} ; \
-    fi \
- && yum -y autoremove \
- && yum -y clean all
+RUN mkdir -p /deployments
+
+ENV JAVA_APP_DIR=/deployments \
+    JAVA_MAJOR_VERSION=8
+
+# /dev/urandom is used as random source, which is prefectly safe
+# according to http://www.2uo.de/myths-about-urandom/
+RUN yum install -y \
+       java-1.8.0-openjdk-1.8.0.191.b12-1.el7_6 $BUILD_DEP_PKGS \
+ && echo "securerandom.source=file:/dev/urandom" >> /usr/lib/jvm/jre/lib/security/java.security
+
+RUN yum -y install openssl-devel.x86_64
+
+ENV JAVA_HOME /etc/alternatives/jre
+
+WORKDIR /opt
+
+RUN curl ${JRUBY_DOWNLOAD_URL} --output /tmp/jruby-download.tar.gz \
+ && tar -xf /tmp/jruby-download.tar.gz -C /tmp/ \
+ && mkdir -p ./jruby \
+ && cp -R /tmp/${JRUBY_INSTALL} ./jruby/
+
+#ENV JRUBY_INSTALL_HOME=$JRUBY_INSTALL_HOME
+ENV PATH=$PATH:JRUBY_INSTALL_HOME/bin
 
 WORKDIR /tmp/app
 
@@ -66,24 +81,15 @@ ARG BUNDLE_WITHOUT=development:test
 
 # Install and/or update Rubygems and Bundler, and configure the latter.
 COPY ${BUNDLE_GEMFILE}.lock ./
-RUN source scl_source enable ${RUBY_SCL} \
- && if test "${GEM_UPDATE}x" = "truex"; then \
-      gem update --system -N ; \
-    fi \
- && gem env \
+
+RUN set -o pipefail \
  && BUNDLED_WITH=$(cat ${BUNDLE_GEMFILE}.lock | \
-      grep -A 1 "^BUNDLED WITH$" | tail -n 1 | sed -e 's/\s//g') \
- && if test "${BUNDLE_VERSION_MATCH}x" = "truex"; then \
-      gem install -N bundler --version ${BUNDLED_WITH} ; \
-    else \
-      yum install -y ${RUBY_SCL}-rubygem-bundler \
-        && yum -y autoremove && yum -y clean all ; \
-    fi \
- && echo Using $(bundle --version), originally bundled with ${BUNDLED_WITH} \
- && bundle config --local silence_root_warning 1 \
- && bundle config --local disable_shared_gems 1 \
- && bundle config --local without ${BUNDLE_WITHOUT} \
- && bundle config --local gemfile ${BUNDLE_GEMFILE}
+      grep -A 1 "^BUNDLED WITH" | tail -n 1 | sed -e 's/\s//g') \
+ && $JRUBY_INSTALL_HOME/bin/jruby -S gem install -N bundler --version ${BUNDLED_WITH}  \
+ && $JRUBY_INSTALL_HOME/bin/jruby -S gem install bundle \
+ && $JRUBY_INSTALL_HOME/bin/jruby -S bundle config --local silence_root_warning 1 \
+ && $JRUBY_INSTALL_HOME/bin/jruby -S bundle config --local disable_shared_gems 1 \
+ && $JRUBY_INSTALL_HOME/bin/jruby -S bundle config --local without ${BUNDLE_WITHOUT}
 
 COPY . ./
 
@@ -93,12 +99,11 @@ ARG CONFIG_SAAS=false
 
 # Builds a clean source tree and deploys it with Bundler.
 # Sets the right configuration and permissions.
-RUN source scl_source enable ${RUBY_SCL} \
- && cp -n openshift/3scale_backend.conf /etc/ \
+RUN cp -n openshift/3scale_backend.conf /etc/ \
  && chmod 644 /etc/3scale_backend.conf \
- && BACKEND_VERSION=$(gem build 3scale_backend.gemspec | \
+ && BACKEND_VERSION=$($JRUBY_INSTALL_HOME/bin/jruby -S gem build 3scale_backend.gemspec | \
       sed -n -e 's/^\s*Version\:\s*\([^[:space:]]*\)$/\1/p') \
- && gem unpack "3scale_backend-${BACKEND_VERSION}.gem" --target=/opt/ruby \
+ && $JRUBY_INSTALL_HOME/bin/jruby -S gem unpack "3scale_backend-${BACKEND_VERSION}.gem" --target=/opt/ruby \
  && cd "/opt/ruby/3scale_backend-${BACKEND_VERSION}" \
  && cp -a /tmp/app/.bundle "/opt/ruby/3scale_backend-${BACKEND_VERSION}/" \
  && if test "${DELETE_UNUSED_GEMFILES}x" = "truex"; then \
@@ -106,25 +111,28 @@ RUN source scl_source enable ${RUBY_SCL} \
       find . -maxdepth 1 -regex \./Gemfile"\(\..*\)?" \
       ! -regex \./$(sed -e 's/[^^]/[&]/g; s/\^/\\^/g' <<< ${BUNDLE_GEMFILE})"\(\.lock\)?" \
       ! -name Gemfile.base -print -delete; \
-    fi \
- && if test "${CACHE_FRIENDLY}x" != "truex"; then \
-      yum -y install ${BUILD_DEP_PKGS} ; \
-    fi \
- && bundle install --deployment --jobs $(grep -c processor /proc/cpuinfo) \
+    fi
+# && if test "${CACHE_FRIENDLY}x" != "truex"; then \
+#      yum -y install ${BUILD_DEP_PKGS} ; \
+#    fi \
+
+RUN $JRUBY_INSTALL_HOME/bin/jruby -S bundle install --binstubs
+
+RUN $JRUBY_INSTALL_HOME/bin/jruby -S bundle install --deployment --jobs $(grep -c processor /proc/cpuinfo) \
 # Bundler < 1.12.0 needs fixing for git gems with extensions (Puma)
- && if ruby -e "begin; require 'rubygems'; Gem::Specification.find_by_name('bundler').version < Gem::Version.new('1.12.0') && exit(0); rescue; end; exit(1)"; then \
-      echo "[WARNING] Old Bundler requires fixing git gems with extensions (Puma)" ; \
-      PUMA_DIR=$(bundle show puma) \
-      && ln -s $(find "${PUMA_DIR}" -name puma_http11.so) "${PUMA_DIR}"/lib/puma ; \
-    fi \
- && yum -y remove ${BUILD_DEP_PKGS} \
- && yum -y autoremove \
- && yum -y clean all \
+# && if ruby -e "begin; require 'rubygems'; Gem::Specification.find_by_name('bundler').version < Gem::Version.new('1.12.0') && exit(0); rescue; end; exit(1)"; then \
+#      echo "[WARNING] Old Bundler requires fixing git gems with extensions (Puma)" ; \
+#      PUMA_DIR=$(bundle show puma) \
+#      && ln -s $(find "${PUMA_DIR}" -name puma_http11.so) "${PUMA_DIR}"/lib/puma ; \
+#    fi \
+# && yum -y remove ${BUILD_DEP_PKGS} \
+# && yum -y autoremove \
+# && yum -y clean all \
  && ln -s ${PWD} /opt/app \
  && if test "${CONFIG_SAAS}x" != "truex"; then \
       cp /tmp/app/openshift/config/puma.rb ./config/ ; \
-    fi \
- && cp -n /tmp/app/openshift/backend-cron /usr/local/sbin/backend-cron \
+    fi 
+RUN cp -n /tmp/app/openshift/backend-cron /usr/local/sbin/backend-cron \
  && cp -n /tmp/app/openshift/entrypoint.sh ./ \
  && rm -rf /tmp/app \
  && mkdir -p -m 0770 /var/run/3scale/ \

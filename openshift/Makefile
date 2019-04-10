@@ -17,7 +17,7 @@
 #
 # If you want to create new build targets:
 #
-# You need to create a new target invoking theb build target after pointing to
+# You need to create a new target invoking the build target after pointing to
 # your Dockerfile and setting up BUILD_ARGS.
 #
 
@@ -32,6 +32,7 @@ ENVIRONMENT:=production
 
 DISTRO:=centos/7
 DOCKERFILE_PATH=$(THISDIR_PATH)/distro/$(DISTRO)
+BUILD_ARGS=--build-arg JRUBY_INSTALL=jruby-9.2.6.0 --build-arg JRUBY_DOWNLOAD_URL=https://repo1.maven.org/maven2/org/jruby/jruby-dist/9.2.6.0/jruby-dist-9.2.6.0-bin.tar.gz
 
 include $(THISDIR_PATH)/mk/git-export-sources.mk
 include $(THISDIR_PATH)/mk/docker-compose.mk
