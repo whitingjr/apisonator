@@ -2,3 +2,4 @@
 require 'aws-sdk'
 require '3scale/backend/analytics/kinesis'
 require '3scale/backend/analytics/redshift'
+Jdbc::Postgres.load_driver

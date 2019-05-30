@@ -37,7 +37,7 @@
 FROM centos:7.6.1810
 
 ARG RUBY_SCL=rh-ruby23
-ARG BUILD_DEP_PKGS="make gcc git clang"
+ARG BUILD_DEP_PKGS="git"
 # Turn off for release mode to produce smaller layers.
 ARG CACHE_FRIENDLY=true
 #   
@@ -53,10 +53,10 @@ ENV JAVA_APP_DIR=/deployments \
 # /dev/urandom is used as random source, which is prefectly safe
 # according to http://www.2uo.de/myths-about-urandom/
 RUN yum install -y \
-       java-1.8.0-openjdk-1.8.0.191.b12-1.el7_6 $BUILD_DEP_PKGS \
+       dos2unix openssl-devel.x86_64 java-1.8.0-openjdk $BUILD_DEP_PKGS \
  && echo "securerandom.source=file:/dev/urandom" >> /usr/lib/jvm/jre/lib/security/java.security
 
-RUN yum -y install openssl-devel.x86_64
+#RUN yum install -y openssl-devel.x86_64
 
 ENV JAVA_HOME /etc/alternatives/jre
 
@@ -67,8 +67,7 @@ RUN curl ${JRUBY_DOWNLOAD_URL} --output /tmp/jruby-download.tar.gz \
  && mkdir -p ./jruby \
  && cp -R /tmp/${JRUBY_INSTALL} ./jruby/
 
-#ENV JRUBY_INSTALL_HOME=$JRUBY_INSTALL_HOME
-ENV PATH=$PATH:JRUBY_INSTALL_HOME/bin
+ENV PATH=$PATH:$JRUBY_INSTALL_HOME/bin
 
 WORKDIR /tmp/app
 
@@ -99,7 +98,8 @@ ARG CONFIG_SAAS=false
 
 # Builds a clean source tree and deploys it with Bundler.
 # Sets the right configuration and permissions.
-RUN cp -n openshift/3scale_backend.conf /etc/ \
+RUN dos2unix openshift/entrypoint.sh \
+ && cp -n openshift/3scale_backend.conf /etc/ \
  && chmod 644 /etc/3scale_backend.conf \
  && BACKEND_VERSION=$($JRUBY_INSTALL_HOME/bin/jruby -S gem build 3scale_backend.gemspec | \
       sed -n -e 's/^\s*Version\:\s*\([^[:space:]]*\)$/\1/p') \
@@ -111,14 +111,16 @@ RUN cp -n openshift/3scale_backend.conf /etc/ \
       find . -maxdepth 1 -regex \./Gemfile"\(\..*\)?" \
       ! -regex \./$(sed -e 's/[^^]/[&]/g; s/\^/\\^/g' <<< ${BUNDLE_GEMFILE})"\(\.lock\)?" \
       ! -name Gemfile.base -print -delete; \
-    fi
-# && if test "${CACHE_FRIENDLY}x" != "truex"; then \
-#      yum -y install ${BUILD_DEP_PKGS} ; \
-#    fi \
+    fi \
+ && if test "${CACHE_FRIENDLY}x" != "truex"; then \
+      yum -y install ${BUILD_DEP_PKGS} ; \
+    fi \
+ && $JRUBY_INSTALL_HOME/bin/jruby -S gem install bundler -v '2.0.1' \
+ && $JRUBY_INSTALL_HOME/bin/jruby -S bundle package --all \
+ && $JRUBY_INSTALL_HOME/bin/jruby -S bundle install --binstubs \
+ && $JRUBY_INSTALL_HOME/bin/jruby -S bundle install --deployment --jobs $(grep -c processor /proc/cpuinfo) \
+ && $JRUBY_INSTALL_HOME/bin/jruby -S bundle check
 
-RUN $JRUBY_INSTALL_HOME/bin/jruby -S bundle install --binstubs
-
-RUN $JRUBY_INSTALL_HOME/bin/jruby -S bundle install --deployment --jobs $(grep -c processor /proc/cpuinfo) \
 # Bundler < 1.12.0 needs fixing for git gems with extensions (Puma)
 # && if ruby -e "begin; require 'rubygems'; Gem::Specification.find_by_name('bundler').version < Gem::Version.new('1.12.0') && exit(0); rescue; end; exit(1)"; then \
 #      echo "[WARNING] Old Bundler requires fixing git gems with extensions (Puma)" ; \
@@ -128,17 +130,18 @@ RUN $JRUBY_INSTALL_HOME/bin/jruby -S bundle install --deployment --jobs $(grep -
 # && yum -y remove ${BUILD_DEP_PKGS} \
 # && yum -y autoremove \
 # && yum -y clean all \
- && ln -s ${PWD} /opt/app \
- && if test "${CONFIG_SAAS}x" != "truex"; then \
+
+    RUN if test "${CONFIG_SAAS}x" != "truex"; then \
       cp /tmp/app/openshift/config/puma.rb ./config/ ; \
-    fi 
-RUN cp -n /tmp/app/openshift/backend-cron /usr/local/sbin/backend-cron \
+    fi \
+ && cp -n /tmp/app/openshift/backend-cron /usr/local/sbin/backend-cron \
  && cp -n /tmp/app/openshift/entrypoint.sh ./ \
- && rm -rf /tmp/app \
  && mkdir -p -m 0770 /var/run/3scale/ \
  && mkdir -p -m 0770 /var/log/backend/ \
  && touch /var/log/backend/3scale_backend{,_worker}.log \
- && chmod g+rw /var/log/backend/3scale_backend{,_worker}.log
+ && chmod g+rw /var/log/backend/3scale_backend{,_worker}.log \
+ && find . -not -uid $(stat -c "%u" .) -exec chown --reference=. {} \; \
+ && mv /tmp/app /opt
 
 EXPOSE 3000
 
@@ -152,7 +155,8 @@ ARG RACK_ENV=production
 # Set TZ to avoid glibc wasting time with unneeded syscalls
 ENV TZ=:/etc/localtime \
     HOME=/tmp/ \
-    ENV_SETUP=". scl_source enable ${RUBY_SCL}" \
+    JRUBY_INSTALL_HOME=$JRUBY_INSTALL_HOME \
+    #ENV_SETUP=". scl_source enable ${RUBY_SCL}" \
     # App-specific env
     RACK_ENV=${RACK_ENV} \
     CONFIG_SAAS=${CONFIG_SAAS} \

@@ -3,11 +3,11 @@ module ThreeScale
     module StorageHelpers
       private
       def encode(stuff)
-        Yajl::Encoder.encode(stuff)
+        JSON.generate(stuff)
       end
 
       def decode(encoded_stuff)
-        stuff = Yajl::Parser.parse(encoded_stuff).symbolize_names
+        stuff = JSON.parse(encoded_stuff, {:symbolize_names => true} )
         stuff[:timestamp] = Time.parse_to_utc(stuff[:timestamp]) if stuff[:timestamp]
         stuff
       end

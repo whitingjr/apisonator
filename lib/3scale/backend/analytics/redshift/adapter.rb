@@ -1,4 +1,5 @@
-require 'pg'
+#require 'jdbc/postgres'
+require 'db/postgres'
 
 module ThreeScale
   module Backend
@@ -297,11 +298,15 @@ module ThreeScale
             end
 
             def redshift_connection
-              @connection ||= PGconn.new(redshift_config)
+              # @connection ||= PGconn.new(redshift_config)
+              @connection ||= ActiveRecord::Base.establish_connection(
+                adapter: 'postgres',
+                database: redshift_config.dbname
+              )
             end
 
             def execute_command(command)
-              redshift_connection.exec(command)
+              redshift_connection.execute(command)
             end
 
             def check_redshift_tables

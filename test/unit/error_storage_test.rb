@@ -19,7 +19,7 @@ class ErrorStorageTest < Test::Unit::TestCase
 
     assert_not_nil raw_error
 
-    error = Yajl::Parser.parse(raw_error)
+    error = JSON.parse(raw_error)
 
     assert_equal 'application_not_found',                   error['code']
     assert_equal 'application with id="boo" was not found', error['message']
@@ -28,12 +28,12 @@ class ErrorStorageTest < Test::Unit::TestCase
 
   test '#list returns errors from the storage' do
     @storage.rpush("errors/service_id:#{@service_id}",
-                   Yajl::Encoder.encode(:code      => 'application_not_found',
+                   JSON.parse(:code      => 'application_not_found',
                                         :message   => 'application with id="foo" was not found',
                                         :timestamp => '2010-07-29 15:23:00 UTC'))
 
     @storage.rpush("errors/service_id:#{@service_id}",
-                   Yajl::Encoder.encode(:code      => 'metric_invalid',
+                   JSON.parse(:code      => 'metric_invalid',
                                         :message   => 'metric "bars" is invalid',
                                         :timestamp => '2010-07-29 15:44:00 UTC'))
 
@@ -122,7 +122,7 @@ class ErrorStorageTest < Test::Unit::TestCase
 
   test '#delete_all deletes all errors from the storage' do
     @storage.rpush("errors/service_id:#{@service_id}",
-                   Yajl::Encoder.encode(:code      => 'application_not_found',
+                   JSON.parse(:code      => 'application_not_found',
                                         :message   => 'application with id="foo" was not found',
                                         :timestamp => '2010-09-03 17:15:00 UTC'))
 

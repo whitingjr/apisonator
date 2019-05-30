@@ -8,7 +8,7 @@ require 'resque'
 require 'securerandom'
 require 'sinatra/base'
 require 'time'
-require 'yajl'
+require 'json'
 require 'yaml'
 require 'digest/md5'
 

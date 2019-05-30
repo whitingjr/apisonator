@@ -87,10 +87,10 @@ module ThreeScale
           # instead of resque:queue:_@queue_.
           encoded_job[0].sub!('queue:', '')
           Resque::Job.new(encoded_job[0],
-                          Yajl::Parser.parse(encoded_job[1], check_utf8: false))
+                          JSON.parse(encoded_job[1], check_utf8: false))
         rescue Exception => e
           # I think that the only exception that can be raised here is
-          # Yajl::ParseError. However, this is a critical part of the code so
+          # JSON::ParseError. However, this is a critical part of the code so
           # we will capture all of them just to be safe.
           Worker.logger.notify(e)
           nil

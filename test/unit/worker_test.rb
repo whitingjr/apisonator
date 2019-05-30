@@ -33,7 +33,7 @@ class WorkerTest < Test::Unit::TestCase
   end
 
   def test_format_of_a_job
-    encoded_job = Yajl::Encoder.encode(:class => 'TestJob', :args => [{'0'=> {:app_id => "app_id with spaces"}}])
+    encoded_job = JSON.parse(:class => 'TestJob', :args => [{'0'=> {:app_id => "app_id with spaces"}}])
     assert_equal '{"class":"TestJob","args":[{"0":{"app_id":"app_id with spaces"}}]}', encoded_job
   end
 
