@@ -117,9 +117,6 @@ RUN source scl_source enable ${RUBY_SCL} \
       PUMA_DIR=$(bundle show puma) \
       && ln -s $(find "${PUMA_DIR}" -name puma_http11.so) "${PUMA_DIR}"/lib/puma ; \
     fi \
- && yum -y remove ${BUILD_DEP_PKGS} \
- && yum -y autoremove \
- && yum -y clean all \
  && ln -s ${PWD} /opt/app \
  && if test "${CONFIG_SAAS}x" != "truex"; then \
       cp /tmp/app/openshift/config/puma.rb ./config/ ; \
@@ -127,6 +124,9 @@ RUN source scl_source enable ${RUBY_SCL} \
  && cp -n /tmp/app/openshift/backend-cron /usr/local/sbin/backend-cron \
  && cp -n /tmp/app/openshift/entrypoint.sh ./ \
  && dos2unix /tmp/app/openshift/entrypoint.sh \
+ && yum -y remove ${BUILD_DEP_PKGS} \
+ && yum -y autoremove \
+ && yum -y clean all \
  && rm -rf /tmp/app \
  && mkdir -p -m 0770 /var/run/3scale/ \
  && mkdir -p -m 0770 /var/log/backend/ \
