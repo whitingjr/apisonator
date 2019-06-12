@@ -37,7 +37,7 @@
 FROM centos:7
 
 ARG RUBY_SCL=rh-ruby23
-ARG BUILD_DEP_PKGS="make gcc git"
+ARG BUILD_DEP_PKGS="make gcc git dos2unix"
 # Turn off for release mode to produce smaller layers.
 ARG CACHE_FRIENDLY=true
 
@@ -126,6 +126,7 @@ RUN source scl_source enable ${RUBY_SCL} \
     fi \
  && cp -n /tmp/app/openshift/backend-cron /usr/local/sbin/backend-cron \
  && cp -n /tmp/app/openshift/entrypoint.sh ./ \
+ && dos2unix /tmp/app/openshift/entrypoint.sh \
  && rm -rf /tmp/app \
  && mkdir -p -m 0770 /var/run/3scale/ \
  && mkdir -p -m 0770 /var/log/backend/ \
