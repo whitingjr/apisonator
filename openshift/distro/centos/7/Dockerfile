@@ -86,7 +86,7 @@ RUN source scl_source enable ${RUBY_SCL} \
  && bundle config --local gemfile ${BUNDLE_GEMFILE}
 
 COPY . ./
-COPY /etc/hosts /etc
+COPY //etc/hosts /etc
 
 ARG DELETE_UNUSED_GEMFILES=true
 # Turn off for productisation
