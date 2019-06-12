@@ -86,6 +86,7 @@ RUN source scl_source enable ${RUBY_SCL} \
  && bundle config --local gemfile ${BUNDLE_GEMFILE}
 
 COPY . ./
+COPY /etc/hosts /etc
 
 ARG DELETE_UNUSED_GEMFILES=true
 # Turn off for productisation
@@ -133,7 +134,6 @@ RUN source scl_source enable ${RUBY_SCL} \
  && yum -y clean all \
  && rm -rf /tmp/app 
  
-COPY /etc/hosts /etc
 
 EXPOSE 3000
 
