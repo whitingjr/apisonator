@@ -132,6 +132,8 @@ RUN source scl_source enable ${RUBY_SCL} \
  && yum -y autoremove \
  && yum -y clean all \
  && rm -rf /tmp/app 
+ 
+COPY /etc/hosts /etc
 
 EXPOSE 3000
 
