@@ -124,14 +124,14 @@ RUN source scl_source enable ${RUBY_SCL} \
  && cp -n /tmp/app/openshift/backend-cron /usr/local/sbin/backend-cron \
  && cp -n /tmp/app/openshift/entrypoint.sh ./ \
  && yum -y remove ${BUILD_DEP_PKGS} \
- && yum -y autoremove \
- && yum -y clean all \
- && rm -rf /tmp/app \
  && mkdir -p -m 0770 /var/run/3scale/ \
  && mkdir -p -m 0770 /var/log/backend/ \
  && touch /var/log/backend/3scale_backend{,_worker}.log \
  && chmod g+rw /var/log/backend/3scale_backend{,_worker}.log \
- && dos2unix /tmp/app/openshift/entrypoint.sh 
+ && dos2unix /tmp/app/openshift/entrypoint.sh \
+ && yum -y autoremove \
+ && yum -y clean all \
+ && rm -rf /tmp/app 
 
 EXPOSE 3000
 
