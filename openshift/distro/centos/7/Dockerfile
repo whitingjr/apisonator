@@ -128,7 +128,7 @@ RUN source scl_source enable ${RUBY_SCL} \
  && mkdir -p -m 0770 /var/log/backend/ \
  && touch /var/log/backend/3scale_backend{,_worker}.log \
  && chmod g+rw /var/log/backend/3scale_backend{,_worker}.log \
- && dos2unix /tmp/app/openshift/entrypoint.sh \
+# && dos2unix /tmp/app/openshift/entrypoint.sh \
  && yum -y autoremove \
  && yum -y clean all \
  && rm -rf /tmp/app 
