@@ -72,7 +72,7 @@ RUN source scl_source enable ${RUBY_SCL} \
     fi \
  && gem env \
  && BUNDLED_WITH=$(cat ${BUNDLE_GEMFILE}.lock | \
-      grep -A 1 "^BUNDLED WITH$" | tail -n 1 | sed -e 's/\s//g') \
+      grep -A 1 "BUNDLED WITH" | tail -n 1 | sed -e 's/\s//g') \
  && if test "${BUNDLE_VERSION_MATCH}x" = "truex"; then \
       gem install -N bundler --version ${BUNDLED_WITH} ; \
     else \
