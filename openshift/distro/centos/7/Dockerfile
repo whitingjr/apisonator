@@ -98,13 +98,13 @@ ARG CONFIG_SAAS=false
 
 # Builds a clean source tree and deploys it with Bundler.
 # Sets the right configuration and permissions.
-RUN dos2unix openshift/entrypoint.sh \
- && cp -n openshift/3scale_backend.conf /etc/ \
- && chmod 644 /etc/3scale_backend.conf \
+RUN cp -n openshift/3scale_backend.conf /etc/ \
+  && chmod 644 /etc/3scale_backend.conf \
  && BACKEND_VERSION=$($JRUBY_INSTALL_HOME/bin/jruby -S gem build 3scale_backend.gemspec | \
       sed -n -e 's/^\s*Version\:\s*\([^[:space:]]*\)$/\1/p') \
  && $JRUBY_INSTALL_HOME/bin/jruby -S gem unpack "3scale_backend-${BACKEND_VERSION}.gem" --target=/opt/ruby \
  && cd "/opt/ruby/3scale_backend-${BACKEND_VERSION}" \
+ && echo "working directory: [$(pwd)]" \
  && cp -a /tmp/app/.bundle "/opt/ruby/3scale_backend-${BACKEND_VERSION}/" \
  && if test "${DELETE_UNUSED_GEMFILES}x" = "truex"; then \
       echo "Deleting the following unused Gemfile files:"; \
@@ -119,29 +119,30 @@ RUN dos2unix openshift/entrypoint.sh \
  && $JRUBY_INSTALL_HOME/bin/jruby -S bundle package --all \
  && $JRUBY_INSTALL_HOME/bin/jruby -S bundle install --binstubs \
  && $JRUBY_INSTALL_HOME/bin/jruby -S bundle install --deployment --jobs $(grep -c processor /proc/cpuinfo) \
- && $JRUBY_INSTALL_HOME/bin/jruby -S bundle check
-
+ && $JRUBY_INSTALL_HOME/bin/jruby -S bundle check \
 # Bundler < 1.12.0 needs fixing for git gems with extensions (Puma)
 # && if ruby -e "begin; require 'rubygems'; Gem::Specification.find_by_name('bundler').version < Gem::Version.new('1.12.0') && exit(0); rescue; end; exit(1)"; then \
 #      echo "[WARNING] Old Bundler requires fixing git gems with extensions (Puma)" ; \
 #      PUMA_DIR=$(bundle show puma) \
 #      && ln -s $(find "${PUMA_DIR}" -name puma_http11.so) "${PUMA_DIR}"/lib/puma ; \
 #    fi \
-# && yum -y remove ${BUILD_DEP_PKGS} \
-# && yum -y autoremove \
-# && yum -y clean all \
-
-    RUN if test "${CONFIG_SAAS}x" != "truex"; then \
+ && ln -s ${PWD} /opt/app \
+ && yum -y remove ${BUILD_DEP_PKGS} \
+ && yum -y autoremove \
+ && yum -y clean all \
+ && if test "${CONFIG_SAAS}x" != "truex"; then \
       cp /tmp/app/openshift/config/puma.rb ./config/ ; \
     fi \
  && cp -n /tmp/app/openshift/backend-cron /usr/local/sbin/backend-cron \
  && cp -n /tmp/app/openshift/entrypoint.sh ./ \
+ && ls -l ./ \
  && mkdir -p -m 0770 /var/run/3scale/ \
  && mkdir -p -m 0770 /var/log/backend/ \
  && touch /var/log/backend/3scale_backend{,_worker}.log \
  && chmod g+rw /var/log/backend/3scale_backend{,_worker}.log \
  && find . -not -uid $(stat -c "%u" .) -exec chown --reference=. {} \; \
- && mv /tmp/app /opt
+ && echo "Finished building final layer."
+# && mv /tmp/app /opt
 
 EXPOSE 3000
 
