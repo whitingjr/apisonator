@@ -37,7 +37,8 @@
 FROM centos:7.6.1810
 
 ARG RUBY_SCL=rh-ruby23
-ARG BUILD_DEP_PKGS="git"
+ARG BUILD_DEP_PKGS="git restorecon setroubleshoot"
+#ARG BUILD_DEP_PKGS="git setenforce"
 # Turn off for release mode to produce smaller layers.
 ARG CACHE_FRIENDLY=true
 #   
@@ -53,10 +54,8 @@ ENV JAVA_APP_DIR=/deployments \
 # /dev/urandom is used as random source, which is prefectly safe
 # according to http://www.2uo.de/myths-about-urandom/
 RUN yum install -y \
-       dos2unix openssl-devel.x86_64 java-1.8.0-openjdk $BUILD_DEP_PKGS \
+       openssl-devel.x86_64 java-1.8.0-openjdk $BUILD_DEP_PKGS \
  && echo "securerandom.source=file:/dev/urandom" >> /usr/lib/jvm/jre/lib/security/java.security
-
-#RUN yum install -y openssl-devel.x86_64
 
 ENV JAVA_HOME /etc/alternatives/jre
 
@@ -65,7 +64,8 @@ WORKDIR /opt
 RUN curl ${JRUBY_DOWNLOAD_URL} --output /tmp/jruby-download.tar.gz \
  && tar -xf /tmp/jruby-download.tar.gz -C /tmp/ \
  && mkdir -p ./jruby \
- && cp -R /tmp/${JRUBY_INSTALL} ./jruby/
+ && cp -R /tmp/${JRUBY_INSTALL} ./jruby/ \
+ && /sbin/restorecon -v /opt/jruby/jruby-9.2.6.0/lib/ruby/gems/shared/specifications/default
 
 ENV PATH=$PATH:$JRUBY_INSTALL_HOME/bin
 
@@ -82,6 +82,9 @@ ARG BUNDLE_WITHOUT=development:test
 COPY ${BUNDLE_GEMFILE}.lock ./
 
 RUN set -o pipefail \
+ && if test "${GEM_UPDATE}x" = "truex"; then \
+      gem update --system -N ; \
+    fi \
  && BUNDLED_WITH=$(cat ${BUNDLE_GEMFILE}.lock | \
       grep -A 1 "^BUNDLED WITH" | tail -n 1 | sed -e 's/\s//g') \
  && $JRUBY_INSTALL_HOME/bin/jruby -S gem install -N bundler --version ${BUNDLED_WITH}  \
@@ -104,7 +107,6 @@ RUN cp -n openshift/3scale_backend.conf /etc/ \
       sed -n -e 's/^\s*Version\:\s*\([^[:space:]]*\)$/\1/p') \
  && $JRUBY_INSTALL_HOME/bin/jruby -S gem unpack "3scale_backend-${BACKEND_VERSION}.gem" --target=/opt/ruby \
  && cd "/opt/ruby/3scale_backend-${BACKEND_VERSION}" \
- && echo "working directory: [$(pwd)]" \
  && cp -a /tmp/app/.bundle "/opt/ruby/3scale_backend-${BACKEND_VERSION}/" \
  && if test "${DELETE_UNUSED_GEMFILES}x" = "truex"; then \
       echo "Deleting the following unused Gemfile files:"; \
@@ -115,10 +117,15 @@ RUN cp -n openshift/3scale_backend.conf /etc/ \
  && if test "${CACHE_FRIENDLY}x" != "truex"; then \
       yum -y install ${BUILD_DEP_PKGS} ; \
     fi \
- && $JRUBY_INSTALL_HOME/bin/jruby -S gem install bundler -v '2.0.1' \
+ #&& echo "> gem install bundler -v '2.0.1'" \
+ #&& $JRUBY_INSTALL_HOME/bin/jruby -S gem install bundler -v '2.0.1' \
+ && echo "> bundle package --all" \
  && $JRUBY_INSTALL_HOME/bin/jruby -S bundle package --all \
+ && echo "> bundle install --binstubs" \
  && $JRUBY_INSTALL_HOME/bin/jruby -S bundle install --binstubs \
+ && echo "> bundle install --deployment --jobs" \
  && $JRUBY_INSTALL_HOME/bin/jruby -S bundle install --deployment --jobs $(grep -c processor /proc/cpuinfo) \
+ && echo "> bundle check" \
  && $JRUBY_INSTALL_HOME/bin/jruby -S bundle check \
 # Bundler < 1.12.0 needs fixing for git gems with extensions (Puma)
 # && if ruby -e "begin; require 'rubygems'; Gem::Specification.find_by_name('bundler').version < Gem::Version.new('1.12.0') && exit(0); rescue; end; exit(1)"; then \
@@ -127,22 +134,21 @@ RUN cp -n openshift/3scale_backend.conf /etc/ \
 #      && ln -s $(find "${PUMA_DIR}" -name puma_http11.so) "${PUMA_DIR}"/lib/puma ; \
 #    fi \
  && ln -s ${PWD} /opt/app \
- && yum -y remove ${BUILD_DEP_PKGS} \
- && yum -y autoremove \
- && yum -y clean all \
+# && yum -y remove ${BUILD_DEP_PKGS} \
+# && yum -y autoremove \
+# && yum -y clean all \
  && if test "${CONFIG_SAAS}x" != "truex"; then \
       cp /tmp/app/openshift/config/puma.rb ./config/ ; \
     fi \
  && cp -n /tmp/app/openshift/backend-cron /usr/local/sbin/backend-cron \
  && cp -n /tmp/app/openshift/entrypoint.sh ./ \
- && ls -l ./ \
  && mkdir -p -m 0770 /var/run/3scale/ \
  && mkdir -p -m 0770 /var/log/backend/ \
  && touch /var/log/backend/3scale_backend{,_worker}.log \
  && chmod g+rw /var/log/backend/3scale_backend{,_worker}.log \
  && find . -not -uid $(stat -c "%u" .) -exec chown --reference=. {} \; \
- && echo "Finished building final layer."
-# && mv /tmp/app /opt
+ && echo "Finished building final layer." #\
+ #&& setenforce Enforcing 
 
 EXPOSE 3000
 
