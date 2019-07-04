@@ -32,7 +32,7 @@ ENVIRONMENT:=production
 
 DISTRO:=centos/7
 DOCKERFILE_PATH=$(THISDIR_PATH)/distro/$(DISTRO)
-BUILD_ARGS=--build-arg JRUBY_INSTALL=jruby-9.2.6.0 --build-arg JRUBY_DOWNLOAD_URL=https://repo1.maven.org/maven2/org/jruby/jruby-dist/9.2.6.0/jruby-dist-9.2.6.0-bin.tar.gz
+BUILD_ARGS=--build-arg GEM_UPDATE=false
 
 include $(THISDIR_PATH)/mk/git-export-sources.mk
 include $(THISDIR_PATH)/mk/docker-compose.mk

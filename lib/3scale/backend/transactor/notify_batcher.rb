@@ -41,7 +41,7 @@ module ThreeScale
           tt = Time.now.getutc
           tt = tt - tt.sec
 
-          encoded = Yajl::Encoder.encode({
+          encoded = JSON.generate({
             provider_key: provider_key,
             usage: usage,
             time: tt.to_s
